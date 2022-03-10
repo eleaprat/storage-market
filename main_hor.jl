@@ -25,40 +25,36 @@ W_df = CSV.read("Wind_Data.csv", DataFrame)
 ### Storage
 S_df = CSV.read("Storage_Data.csv", DataFrame)
 
-nb_g = div((ncol(G_df)-1),3)
-nb_l = div((ncol(L_df)-1),3)
-nb_w = div((ncol(W_df)-1),3)
-nb_s = nrow(S_df)
-nb_t_tot = nrow(G_df)
+nb_g = 1
+nb_l = 1
+nb_w = 1
+nb_s = 1
+#nb_t_tot = nrow(G_df)
 #nb_d = div(nb_t_tot,24)
-nb_d = 30
+nb_d_max = 25
+nb_d_test = 300
 ∆t = 1 # Time steps of 1 hour
 t_per_d = div(24,∆t)
 
 ## Create Sets
 
 G = ["G$i" for i in 1:nb_g]
-
 L = ["L$i" for i in 1:nb_l]
-
 W = ["W$i" for i in 1:nb_w]
-
 S = ["S$i" for i in 1:nb_s]
 
-T_tot = ["T$i" for i in 0:nb_t_tot]
+#T_tot = ["T$i" for i in 0:nb_t_tot]
+#T_d = ["T$i" for i in 0:24]
 
-T_d = ["T$i" for i in 0:24]
-
-D = [i for i in 1:nb_d]
-
-D_str = ["$i" for i in 1:nb_d]
+D_run = [i for i in 1:nb_d_test]
+D_str = ["$i" for i in 1:nb_d_test]
+D_horizon = [(nb_d_max+1)-i for i in 1:nb_d_max]
+D_horizon_str = ["$i" for i in D_horizon]
 
 include("final_level_fct.jl")
 
 # Initialization
-nb_t = 0
-ps_end_d1 = []
-ps_end_d2 = []
+nb_t = nb_d_max * t_per_d # Length of the horizon
 
 ps_init = []
 ps_final = []
@@ -67,28 +63,50 @@ for s in nb_s
     ps_init = append!(ps_init, S_df[s, "SOC Init"])
     ps_final = append!(ps_final, S_df[s, "SOC End"])
 end
+sw_vs_horizon = []
 
-for d in D
-    global nb_t, ps_end_d1, ps_end_d2
-    nb_t += t_per_d
+for h in D_horizon # For each horizon length
+    global nb_t, sw_cum_max, sw_vs_horizon
 
-    # Day 1
     t_start = 1
-    obj_d1, ps_d1, ec_d1, ed_d1, sw_d1, ls_d1, λ_d1 = mc_storage_final(t_start, nb_t, ps_init, ps_final)
-    end_of_d1 = ps_d1["S1","T24"]
-    print("End of day 1: $end_of_d1",)
-    ps_end_d1 = append!(ps_end_d1, end_of_d1)
+    ps_start = ps_init
+    sw_cum = []
+    sw_cum_rel = []
 
-    # Day 2
-    t_start = 1 + t_per_d
-    obj_d2, ps_d2, ec_d2, ed_d2, sw_d2, ls_d2, λ_d2 = mc_storage_final(t_start, nb_t, [end_of_d1], ps_final)
-    end_of_d2 = ps_d2["S1","T48"]
-    print("End of day 2: $end_of_d2",)
-    ps_end_d2 = append!(ps_end_d2, end_of_d2)
+    for d in D_run # For each day in the test set
+        t_end = t_start + t_per_d - 1
+        obj_d, ps_d, ec_d, ed_d, sw_d, ls_d, λ_d = mc_storage_final(t_start, nb_t, ps_start, ps_final)
+        if d == 1
+            sw_cum_d = sum(sw_d[1:24]) # Add social welfare of the first day
+        else
+            sw_cum_d = sw_cum[end] + sum(sw_d[1:24]) # Add social welfare of the first day
+        end
+        sw_cum = append!(sw_cum, sw_cum_d)
+        if h == nb_d_max
+            sw_cum_max = sw_cum
+        end
+        end_of_d = ps_d["S1","T$t_end"]
+        t_start += t_per_d
+        ps_start = [end_of_d]
+    end
+
+    for d in D_run
+        sw_cum_rel = append!(sw_cum_rel, (sw_cum_max[d]-sw_cum[d]))
+    end
+
+    if h == nb_d_max
+        plot(D_str, sw_cum_rel, label="SW difference - $h days", xticks = :all, legend = false)
+    else
+        plot!(D_str, sw_cum_rel, label="SW difference - $h days")
+    end
+
+    sw_vs_horizon = append!(sw_vs_horizon, sw_cum_rel[end])
+
+    nb_t -= t_per_d # Increment running horizon by 24 hours / 1 day
+
 end
 
-plot(D_str, ps_end_d1, legend = false, xticks = :all)
-savefig("Final Level Day 1")
+savefig("SW Difference")
 
-plot(D_str, ps_end_d2, legend = false, xticks = :all)
-savefig("Final Level Day 2")
+plot(D_horizon_str, sw_vs_horizon, xticks = :all, legend = false)
+savefig("SW Difference vs horizon")
