@@ -6,4 +6,4 @@ The models are available in the Jupyter Notebook **mc-passive-stg.ipynb**, which
 
 The data for the generators, loads and storage can be modified in the csv files **data_gen.csv**, **data_load.csv** and **data_stg.csv**.
 
-Finally, the folders **Example Section III** and **Example Section IV** contain the csv files used in the illustrative examples of the paper.
+Finally, the folders [**Example Section III**](https://github.com/eleaprat/storage-market/tree/main/Example%20Section%20III) and [**Example Section IV**](https://github.com/eleaprat/storage-market/tree/main/Example%20Section%20IV) contain the csv files used in the illustrative examples of the paper.
